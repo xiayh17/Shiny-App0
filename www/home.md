@@ -3,7 +3,7 @@
 
 <i><font face="Times New Roman" color=green size=6>CP2S (Converting Probes into Symbols)</font></i> <font face="仿宋" color=black size=5.5>is an app that let you converting Probes into Symbols. </font>
 
-<font face="仿宋" color=black size=5.5>From the left navigation panel you'll be able to access the data and charts concerning the data. It has been made with [shiny](https://shiny.rstudio.com/) and you may find the code on [github](https://github.com/xiayh17). </font>
+<font face="仿宋" color=black size=5.5>From the left navigation panel you'll be able to access the data and charts concerning the data. It has been made with [shiny](https://shiny.rstudio.com/) and you may find the code on [github](https://github.com/xiayh17/Shiny-App0). </font>
 
 <font face="仿宋" color=black size=5.5>For more information have a look a the video below.</font>
 <br><br><br>
