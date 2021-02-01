@@ -2,16 +2,17 @@ library(shiny)
 library(shinycssloaders)
 library(shinydashboard)
 library(DT)
-library(collapsibleTree)
+#library(collapsibleTree)
 library(shinyBS)
 library(AnnoProbe)
 library(GEOquery)
 library(stringr)
 library(limma)
 library(markdown)
+library(shinyjs)
 #source("helper.R")
 ui <- fluidPage(
-
+  useShinyjs(),
   # load custom stylesheet
   includeCSS("www/style.css"),
   includeCSS("www/iconfont.css"),
@@ -98,12 +99,14 @@ ui <- fluidPage(
           helpText("Preview expression data just downloaded"),
           htmlOutput("dim"),
           br(),
-          dataTableOutput("preview1") %>% withSpinner(type = 6),
+          #dataTableOutput("preview1") %>% withSpinner(type = 6) %>% hidden(),
+          hidden(div(id = 'show1', withSpinner((dataTableOutput("preview1"))))),
           h3(em(strong("A boxplot check"))),
           br(),
           helpText("Quick check expression data just downloaded with boxplot"),
           actionButton("applyBoxpot1", "Box plot"),
-          plotOutput("boxplot1") %>% withSpinner(type = 6)
+          #plotOutput("boxplot1") %>% withSpinner(type = 6) %>% hidden()
+          hidden(div(id = 'show2', withSpinner((plotOutput("boxplot1")))))
         ),
 
         tabItem(
@@ -116,7 +119,8 @@ ui <- fluidPage(
           textInput("g2","Group2 Keywords","Diabetes"),
           actionButton("applyGroup","Access Group"),
           helpText("The robot point out Group of Clinic infomation below"),
-          tableOutput("group") %>% withSpinner(type = 6),
+          #tableOutput("group") %>% withSpinner(type = 6) %>% hidden(),
+          hidden(div(id = 'show3', withSpinner((tableOutput("group"))))),
           h3(em(strong("Preview Clinic infomation"))),
           helpText("Preview phenotypic data after download"),
           dataTableOutput("preview2") %>% withSpinner(type = 6)
@@ -130,7 +134,7 @@ ui <- fluidPage(
           textInput("type","","bioc"),
           actionButton("anno","Start Probe Annotation"),
           h3(em(strong("Preview Probe Anntation"))),
-          dataTableOutput("preview3") %>% withSpinner(type = 6)
+          dataTableOutput("preview3") %>% withSpinner(type = 6) %>% hidden()
         ),
 
         tabItem(
@@ -139,7 +143,7 @@ ui <- fluidPage(
           h3(em(strong("Filter expression matrix based on annotation"))),
           actionButton("filter","Start Filter"),
           br(),
-          dataTableOutput("preview4") %>% withSpinner(type = 6)
+          dataTableOutput("preview4") %>% withSpinner(type = 6) %>% hidden()
         ),
 
         tabItem(
@@ -147,7 +151,7 @@ ui <- fluidPage(
           tabName = "normal",
           h3(em(strong("Normalization with limma"))),
           actionButton("norm","Start Normalization"),
-          dataTableOutput("preview5")  %>% withSpinner(type = 6)
+          dataTableOutput("preview5")  %>% withSpinner(type = 6) %>% hidden()
         ),
 
         tabItem(
@@ -164,7 +168,7 @@ ui <- fluidPage(
           textInput("p_thred","P Thred",0.05),
           textInput("logFC_thred","logFC Thred",1),
           actionButton("pv","Plot Volcano"),
-          plotOutput("vplot")  %>% withSpinner(type = 6)
+          plotOutput("vplot")  %>% withSpinner(type = 6) %>% hidden()
         ),
 
         tabItem(tabName = "release", includeMarkdown("www/releases.md"))
@@ -181,6 +185,7 @@ server <- function(input, output){
   ## 1. download section
   # download data
   eSet <- eventReactive(input$applyDownload, {
+    show("show1")
     gse=geoChina(input$geoacc)
     gse[[1]]
   })
@@ -206,6 +211,7 @@ server <- function(input, output){
 
   # boxplot1
   observeEvent(input$applyBoxpot1, {
+    show("show2")
     output$boxplot1 <- renderPlot({
       boxplot(probes_expr(),las=2)
     })
@@ -230,7 +236,7 @@ server <- function(input, output){
     ifelse(grepl(g1,phenoDat()[,gc]),g1,g2)
   })
   observeEvent(input$applyGroup, {
-
+    show("show3")
     # group table
     output$group <- renderTable({
       test <- table(group_list())
@@ -248,6 +254,7 @@ server <- function(input, output){
     })
 
     observeEvent(input$anno, {
+      show("preview3")
       # preview data
       output$preview3 <- renderDataTable({
         probes_anno()
@@ -263,6 +270,7 @@ server <- function(input, output){
     })
 
     observeEvent(input$filter, {
+      show("preview4")
       # preview data
       output$preview4 <- renderDataTable({
         genes_expr()
@@ -280,6 +288,7 @@ server <- function(input, output){
     })
     # preview after press button
     observeEvent(input$norm, {
+      show("preview5")
       output$preview5 <- renderDataTable({
         deg()
       })
@@ -287,6 +296,7 @@ server <- function(input, output){
 
     # heatmap
     observeEvent(input$ph,{
+      show("hplot")
       output$hplot <- renderPlot({
         DEG <- deg()
         genes_expr <- genes_expr()
@@ -302,6 +312,7 @@ server <- function(input, output){
     })
 
     observeEvent(input$pv,{
+      show("vplot")
       output$vplot <- renderPlot({
         need_deg <- need_deg()
         st <- as.numeric(input$style)
