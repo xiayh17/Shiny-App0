@@ -17,6 +17,7 @@ createLink <- function(val) {
 }
 #source("helper.R")
 ui <- fluidPage(
+  tags$head(includeHTML(("google-analytics.html"))),
   useShinyjs(),
   # load custom stylesheet
   includeCSS("www/style.css"),
