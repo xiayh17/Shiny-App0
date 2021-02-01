@@ -10,6 +10,11 @@ library(stringr)
 library(limma)
 library(markdown)
 library(shinyjs)
+library(plotly)
+library(tidyr)
+createLink <- function(val) {
+  sprintf('<a href="https://www.genecards.org/cgi-bin/carddisp.pl?gene=%s" target="_blank" class="btn btn-primary">GeneCards</a>',val)
+}
 #source("helper.R")
 ui <- fluidPage(
   useShinyjs(),
@@ -100,13 +105,21 @@ ui <- fluidPage(
           htmlOutput("dim"),
           br(),
           #dataTableOutput("preview1") %>% withSpinner(type = 6) %>% hidden(),
-          hidden(div(id = 'show1', withSpinner((dataTableOutput("preview1"))))),
+          hidden(div(id = 'show1', withSpinner((dataTableOutput("preview1")),type = 6))),
+          br(),
+          downloadLink("downloadpreview1", "Download Table"),
           h3(em(strong("A boxplot check"))),
           br(),
           helpText("Quick check expression data just downloaded with boxplot"),
           actionButton("applyBoxpot1", "Box plot"),
+          checkboxInput("log", "log gene expression",
+                    value = FALSE),
           #plotOutput("boxplot1") %>% withSpinner(type = 6) %>% hidden()
-          hidden(div(id = 'show2', withSpinner((plotOutput("boxplot1")))))
+          hidden(div(id = 'show2', withSpinner((plotlyOutput("boxplot1")),type = 6))),
+          br(),
+          #downloadLink("downloadboxplot1", "Download Plot"),
+          br(),
+          br()
         ),
 
         tabItem(
@@ -120,7 +133,7 @@ ui <- fluidPage(
           actionButton("applyGroup","Access Group"),
           helpText("The robot point out Group of Clinic infomation below"),
           #tableOutput("group") %>% withSpinner(type = 6) %>% hidden(),
-          hidden(div(id = 'show3', withSpinner((tableOutput("group"))))),
+          hidden(div(id = 'show3', withSpinner((tableOutput("group")),type = 6))),
           h3(em(strong("Preview Clinic infomation"))),
           helpText("Preview phenotypic data after download"),
           dataTableOutput("preview2") %>% withSpinner(type = 6)
@@ -129,21 +142,31 @@ ui <- fluidPage(
         tabItem(
           # probe Annotation section
           tabName = "probe",
-          h3(em(strong("Input your type"))),
-          helpText("source of probe anntation stored, one of 'pipe', 'bioc', 'soft', default:'pipe'"),
-          textInput("type","","bioc"),
+          h3(em(strong("Select your type"))),
+          helpText("source of probe anntation stored, one of 'pipe', 'bioc', 'soft'"),
+          #textInput("type","","bioc"),
+          selectInput(inputId = "type",
+                      label = "Select a type:",
+                      choices = c('pipe', 'bioc', 'soft'),
+                      selected = 'bioc'),
+          helpText("choose human or mouse, or rat, default: human"),
+          selectInput(inputId = "species",
+                      label = "Choose species:",
+                      choices = c('human', 'mouse', 'rat'),
+                      selected = 'human'),
           actionButton("anno","Start Probe Annotation"),
           h3(em(strong("Preview Probe Anntation"))),
-          dataTableOutput("preview3") %>% withSpinner(type = 6) %>% hidden()
+          #dataTableOutput("preview3") %>% withSpinner(type = 6) %>% hidden()
+          hidden(div(id = 'show4', withSpinner((dataTableOutput("preview3")),type = 6)))
         ),
 
         tabItem(
           # Filter expression data
           tabName = "filter",
           h3(em(strong("Filter expression matrix based on annotation"))),
-          actionButton("filter","Start Filter"),
+          #actionButton("filter","Start Filter"),
           br(),
-          dataTableOutput("preview4") %>% withSpinner(type = 6) %>% hidden()
+          dataTableOutput("preview4") %>% withSpinner(type = 6)
         ),
 
         tabItem(
@@ -151,7 +174,9 @@ ui <- fluidPage(
           tabName = "normal",
           h3(em(strong("Normalization with limma"))),
           actionButton("norm","Start Normalization"),
-          dataTableOutput("preview5")  %>% withSpinner(type = 6) %>% hidden()
+          #dataTableOutput("preview5")  %>% withSpinner(type = 6) %>% hidden()
+          hidden(div(id = 'show5', withSpinner((dataTableOutput("preview5")),type = 6))),
+          downloadButton("downloadpreview5", "Download Table")
         ),
 
         tabItem(
@@ -159,7 +184,8 @@ ui <- fluidPage(
           tabName = "heatmap",
           h3(em(strong("Plot Heatmap"))),
           actionButton("ph","Plot Heatmap"),
-          plotOutput("hplot")  %>% withSpinner(type = 6),
+          #plotOutput("hplot")  %>% withSpinner(type = 6),
+          hidden(div(id = 'show6', withSpinner((plotOutput("hplot")),type = 6))),
           h3(em(strong("Plot Volcano"))),
           br(),
           textInput("style","Style of Volcano",1),
@@ -168,7 +194,8 @@ ui <- fluidPage(
           textInput("p_thred","P Thred",0.05),
           textInput("logFC_thred","logFC Thred",1),
           actionButton("pv","Plot Volcano"),
-          plotOutput("vplot")  %>% withSpinner(type = 6) %>% hidden()
+          #plotOutput("vplot")  %>% withSpinner(type = 6) %>% hidden()
+          hidden(div(id = 'show7', withSpinner((plotOutput("vplot")),type = 6)))
         ),
 
         tabItem(tabName = "release", includeMarkdown("www/releases.md"))
@@ -192,12 +219,17 @@ server <- function(input, output){
 
   # access the expression of assay data
   probes_expr <- reactive({
-    exprs(eSet())
+    probes_expr <- exprs(eSet())
+    if(input$log) {
+      log(probes_expr)
+    } else {
+      probes_expr
+    }
   })
 
   # preview data table
   output$preview1 <- renderDataTable({
-    probes_expr()
+      probes_expr()
   })
 
   # describe data dimension
@@ -209,11 +241,26 @@ server <- function(input, output){
           "column")
   })
 
+  #download the expression of assay data
+  output$downloadpreview1 <- downloadHandler(
+    filename = function() {
+      paste("exp-data-", Sys.Date(), ".csv", sep="")
+    },
+    content = function(file) {
+      write.csv(probes_expr(), file)
+    }
+  )
   # boxplot1
   observeEvent(input$applyBoxpot1, {
     show("show2")
-    output$boxplot1 <- renderPlot({
-      boxplot(probes_expr(),las=2)
+    data <- as.data.frame(probes_expr())
+    res1 <- gather(data) #宽转长
+    output$boxplot1 <- renderPlotly({
+      #boxplot(probes_expr(),las=2)
+      plot_ly(res1,y=~value,x=~key,color=~key,type = "box") %>%
+      layout(
+         xaxis = list(title = 'Samples'),
+         yaxis = list(title = 'Expression'))
     })
   })
 
@@ -254,11 +301,20 @@ server <- function(input, output){
     })
 
     observeEvent(input$anno, {
-      show("preview3")
+      show("show4")
+      # merge more info
+      t2 <- reactive({
+        load('GPL8300_bioc.rda')
+        tmp=annoGene(GPL8300_bioc$symbol,'SYMBOL',input$species)
+        t2=merge(tmp,GPL8300_bioc,by.y='symbol',by.x='SYMBOL')
+        t2$links <- createLink(t2$SYMBOL)
+        t2
+      })
+      # symbol  链接到genecard数据库
       # preview data
       output$preview3 <- renderDataTable({
-        probes_anno()
-      })
+        t2()
+      }, escape = FALSE)
     })
 
     #4. Filter Expression
@@ -269,13 +325,13 @@ server <- function(input, output){
       filterEM(dat1,dat2)
     })
 
-    observeEvent(input$filter, {
-      show("preview4")
+    #observeEvent(input$filter, {
+
       # preview data
       output$preview4 <- renderDataTable({
         genes_expr()
       })
-    })
+    #})
 
     #5. Normalization
     deg <- reactive({
@@ -288,15 +344,24 @@ server <- function(input, output){
     })
     # preview after press button
     observeEvent(input$norm, {
-      show("preview5")
+      show("show5")
       output$preview5 <- renderDataTable({
         deg()
       })
     })
+    #download the expression of assay data
+    output$downloadpreview5 <- downloadHandler(
+      filename = function() {
+        paste("normalization-data-", Sys.Date(), ".csv", sep="")
+      },
+      content = function(file) {
+        write.csv(deg(), file)
+      }
+    )
 
     # heatmap
     observeEvent(input$ph,{
-      show("hplot")
+      show("show6")
       output$hplot <- renderPlot({
         DEG <- deg()
         genes_expr <- genes_expr()
@@ -312,7 +377,7 @@ server <- function(input, output){
     })
 
     observeEvent(input$pv,{
-      show("vplot")
+      show("show7")
       output$vplot <- renderPlot({
         need_deg <- need_deg()
         st <- as.numeric(input$style)
